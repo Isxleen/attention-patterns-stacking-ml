@@ -1,0 +1,32 @@
+# Entorno virtual
+env/
+
+# Archivos temporales de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribución / Paquetes
+bin/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+
+# Datos (Opcional)
+# Si no quieres que tus archivos Excel pesados se suban a GitHub:
+data/raw/*.xlsx
+data/processed/*.xlsx
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
