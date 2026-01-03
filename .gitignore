@@ -1,13 +1,14 @@
-# Entorno virtual
-env/
 
-# Archivos temporales de Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+*.py[codz]
 *$py.class
 
-# Distribución / Paquetes
-bin/
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
 build/
 develop-eggs/
 dist/
@@ -21,9 +22,6 @@ sdist/
 var/
 wheels/
 *.egg-info/
-
-# Datos (Opcional)
-# Si no quieres que tus archivos Excel pesados se suban a GitHub:
 data/raw/*.xlsx
 data/processed/*.xlsx
 
