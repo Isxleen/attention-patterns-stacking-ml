@@ -27,4 +27,6 @@ data/processed/*.csv
 
 # Archivos de sistema
 .DS_Store
+*/.DS_Store
+env/
 Thumbs.db
