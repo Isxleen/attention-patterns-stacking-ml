@@ -4,13 +4,11 @@ from src.preprocessing import (
     TrialCleaner,
     SubjectLevelAggregator
 )
-
+from src.feature_engineering import PCAFeatureExtractor
 import logging
 import os
 
-# -----------------------------------------------------
-# Configuración básica de logging
-# -----------------------------------------------------
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
@@ -23,12 +21,14 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------
 RAW_DATA_PATH = "data/raw"
 PROCESSED_DATA_PATH = "data/processed"
-OUTPUT_FILE = "subject_level_dataset.csv"
+
+SUBJECT_DATASET_FILE = "subject_level_dataset.csv"
+PCA_DATASET_FILE = "subject_level_pca.csv"
 
 os.makedirs(PROCESSED_DATA_PATH, exist_ok=True)
 
 # -----------------------------------------------------
-# 1. Carga de datos 
+# 1. Carga de datos
 # -----------------------------------------------------
 logger.info("Loading raw datasets...")
 ingestor = DataIngestor(RAW_DATA_PATH)
@@ -36,13 +36,18 @@ raw_df = ingestor.load_and_merge()
 logger.info(f"Raw dataset shape: {raw_df.shape}")
 
 # -----------------------------------------------------
-# 2. Selección de variables por tarea
+# 2. Eliminación de ensayos de práctica (3.4.1)
 # -----------------------------------------------------
+logger.info("Removing practice trials from raw data...")
 raw_df = (
     TrialCleaner(raw_df)
     .remove_practice_trials()
     .get_clean_data()
 )
+
+# -----------------------------------------------------
+# 3. Selección de variables por tarea
+# -----------------------------------------------------
 logger.info("Selecting task-specific variables...")
 selector = TaskSpecificCleaner(raw_df)
 
@@ -51,7 +56,7 @@ stroop_df = selector.clean_stroop()
 sart_df = selector.clean_sart()
 
 # -----------------------------------------------------
-# 3. Limpieza y depuración de ensayos (3.4.1)
+# 4. Limpieza y depuración de ensayos 
 # -----------------------------------------------------
 logger.info("Cleaning Flanker trials...")
 flanker_df = (
@@ -72,7 +77,6 @@ stroop_df = (
 logger.info("Cleaning SART trials...")
 sart_df = (
     TrialCleaner(sart_df)
-    .remove_practice_trials()
     .remove_missing()
     .filter_latency()
     .get_clean_data()
@@ -83,7 +87,7 @@ logger.info(f"Stroop cleaned shape: {stroop_df.shape}")
 logger.info(f"SART cleaned shape: {sart_df.shape}")
 
 # -----------------------------------------------------
-# 4. Agregación por participante 
+# 5. Agregación a nivel de participante
 # -----------------------------------------------------
 logger.info("Aggregating subject-level dataset...")
 aggregator = SubjectLevelAggregator(
@@ -94,11 +98,37 @@ aggregator = SubjectLevelAggregator(
 
 final_df = aggregator.build_final_dataset()
 
-# -----------------------------------------------------
-# 5. Guardado del dataset final
-# -----------------------------------------------------
-output_path = os.path.join(PROCESSED_DATA_PATH, OUTPUT_FILE)
-final_df.to_csv(output_path, index=False)
+# Guardado del dataset agregado
+subject_output_path = os.path.join(
+    PROCESSED_DATA_PATH,
+    SUBJECT_DATASET_FILE
+)
+final_df.to_csv(subject_output_path, index=False)
+logger.info(f"Subject-level dataset saved to: {subject_output_path}")
 
-logger.info(f"Final dataset saved to: {output_path}")
+# -----------------------------------------------------
+# 6. PCA – Feature Matrix final 
+# -----------------------------------------------------
+logger.info("Applying PCA to subject-level dataset...")
+pca_extractor = PCAFeatureExtractor(
+    final_df,
+    variance_threshold=0.95
+)
+
+pca_df = pca_extractor.get_pca_dataframe()
+
+# Guardado del dataset con PCA
+pca_output_path = os.path.join(
+    PROCESSED_DATA_PATH,
+    PCA_DATASET_FILE
+)
+
+logger.info(f"PCA dataset shape: {pca_df.shape}")
+logger.info(f"PCA columns: {list(pca_df.columns)}")
+pca_df.to_csv(pca_output_path, index=False)
+logger.info(f"PCA dataset saved to: {pca_output_path}")
+pca_extractor = PCAFeatureExtractor(final_df)
+pca_results = pca_extractor.get_pca_dataframe() # Procesar datos
+pca_extractor.plot_scree_plot() # Generar el gráfico
+
 logger.info("Preprocessing pipeline completed successfully.")

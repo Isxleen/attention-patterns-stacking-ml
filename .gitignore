@@ -23,7 +23,7 @@ var/
 wheels/
 *.egg-info/
 data/raw/*.xlsx
-data/processed/*.xlsx
+data/processed/*.csv
 
 # Archivos de sistema
 .DS_Store
