@@ -14,15 +14,17 @@ class TrialCleaner:
     - Eliminación de bloques de práctica
     - Eliminación de valores perdidos
     - Filtrado de latencias no plausibles
+
+    Generic trial-level cleaning:
+    - Removal of practice blocks
+    - Missing value exlusion
+    - Filtering of implausive latencies
     """
 
     def __init__(self, df):
         self.df = df.copy()
 
     def remove_practice_trials(self):
-        """
-        Elimina ensayos correspondientes a bloques de práctica
-        """
         if "blockcode" in self.df.columns:
             before = self.df.shape[0]
             self.df = self.df[self.df["blockcode"] != "practice"]
@@ -38,17 +40,11 @@ class TrialCleaner:
         return self
 
     def remove_missing(self):
-        """
-        Elimina ensayos con valores críticos ausentes
-        """
         critical = ["subjectid", "correct"]
         self.df = self.df.dropna(subset=critical)
         return self
 
     def filter_latency(self, min_rt=200, max_rt=2000):
-        """
-        Filtrado de tiempos de reacción
-        """
         if "latency" in self.df.columns:
             self.df = self.df[
                 (self.df["latency"] >= min_rt) &
@@ -68,15 +64,12 @@ class TrialCleaner:
 
 
 class TaskSpecificCleaner:
-    """
-    Selección de columnas relevantes por tarea.
-    """
 
     def __init__(self, df):
         self.df = df.copy()
 
     # -------------------------
-    # FLANKER
+    # FLANKER RELEVANT COLS
     # -------------------------
     def clean_flanker(self):
         cols = [
@@ -96,7 +89,7 @@ class TaskSpecificCleaner:
         return flanker
 
     # -------------------------
-    # STROOP
+    # STROOP RELEVANT COLS
     # -------------------------
     def clean_stroop(self):
         cols = [
@@ -117,7 +110,7 @@ class TaskSpecificCleaner:
         return stroop
 
     # -------------------------
-    # SART
+    # SART RELEVANT COLS
     # -------------------------
     def clean_sart(self):
         cols = [
@@ -144,6 +137,9 @@ class SubjectLevelAggregator:
     """
     Construcción del dataset final:
     UNA fila por sujeto con métricas por tarea
+
+    Final dataset construction:
+    One row per subject with task-specific metrics
     """
 
     def __init__(self, flanker_df, stroop_df, sart_df):

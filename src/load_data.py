@@ -12,9 +12,6 @@ class DataIngestor:
         }
 
     def load_task(self, task_name):
-        """
-        Carga un dataset concreto y añade la etiqueta de tarea
-        """
         if task_name not in self.supported_tasks:
             raise ValueError(f"Tarea no soportada: {task_name}")
         
@@ -31,9 +28,6 @@ class DataIngestor:
         return df
     
     def load_all_tasks(self):
-        """
-        Carga todos los datasets y los devuelve en un diccionario
-        """
         data = {}
         for task in self.supported_tasks:
             data[task] = self.load_task(task)
@@ -41,9 +35,6 @@ class DataIngestor:
         return data
 
     def load_and_merge(self):
-        """
-        Carga todos los datasets y los combina en un único DataFrame
-        """
         dfs = []
         for task in self.supported_tasks:
             df = self.load_task(task)
