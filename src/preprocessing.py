@@ -1,10 +1,6 @@
-import pandas as pd
-import numpy as np
 import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,29 +10,23 @@ class TrialCleaner:
     - Eliminación de bloques de práctica
     - Eliminación de valores perdidos
     - Filtrado de latencias no plausibles
-
-    Generic trial-level cleaning:
-    - Removal of practice blocks
-    - Missing value exlusion
-    - Filtering of implausive latencies
     """
 
-    def __init__(self, df):
+    def __init__(self, df: pd.DataFrame):
         self.df = df.copy()
 
     def remove_practice_trials(self):
         if "blockcode" in self.df.columns:
-            before = self.df.shape[0]
+            before = len(self.df)
             self.df = self.df[self.df["blockcode"] != "practice"]
-            after = self.df.shape[0]
+            after = len(self.df)
+            logger.info(f"Removed practice trials: {before - after} (remaining: {after})")
+        return self
 
-            logger.info(
-                f"Removed practice trials: {before - after} "
-                f"(remaining: {after})"
-            )
-        else:
-            logger.info("No blockcode column found; skipping practice removal")
-
+    def ensure_correct_numeric(self):
+        # Convierte bool -> int, "true/false" -> NaN si no se puede
+        if "correct" in self.df.columns:
+            self.df["correct"] = pd.to_numeric(self.df["correct"], errors="coerce")
         return self
 
     def remove_missing(self):
@@ -46,103 +36,49 @@ class TrialCleaner:
 
     def filter_latency(self, min_rt=200, max_rt=2000):
         if "latency" in self.df.columns:
-            self.df = self.df[
-                (self.df["latency"] >= min_rt) &
-                (self.df["latency"] <= max_rt)
-            ]
+            self.df = self.df[(self.df["latency"] >= min_rt) & (self.df["latency"] <= max_rt)]
 
         if "values.RT" in self.df.columns:
-            self.df = self.df[
-                (self.df["values.RT"] >= min_rt) &
-                (self.df["values.RT"] <= max_rt)
-            ]
+            self.df = self.df[(self.df["values.RT"] >= min_rt) & (self.df["values.RT"] <= max_rt)]
 
         return self
 
-    def get_clean_data(self):
+    def get_clean_data(self) -> pd.DataFrame:
         return self.df
 
 
 class TaskSpecificCleaner:
-
-    def __init__(self, df):
+    def __init__(self, df: pd.DataFrame):
         self.df = df.copy()
 
-    # -------------------------
-    # FLANKER RELEVANT COLS
-    # -------------------------
+    def _select(self, task_name: str, cols: list[str]) -> pd.DataFrame:
+        task_df = self.df[self.df["task"] == task_name]
+        missing_cols = [c for c in cols if c not in task_df.columns]
+        if missing_cols:
+            raise KeyError(f"Missing columns for {task_name}: {missing_cols}")
+        return task_df[cols]
+
     def clean_flanker(self):
-        cols = [
-            "subjectid",
-            "blocknum",
-            "trialnum",
-            "values.congruence",
-            "response",
-            "correct",
-            "latency",
-            "task"
-        ]
+        cols = ["subjectid", "blocknum", "trialnum", "values.congruence", "response", "correct", "latency", "task"]
+        return self._select("flanker", cols)
 
-        flanker = self.df[self.df["task"] == "flanker"]
-        flanker = flanker[cols]
-
-        return flanker
-
-    # -------------------------
-    # STROOP RELEVANT COLS
-    # -------------------------
     def clean_stroop(self):
-        cols = [
-            "subjectid",
-            "blocknum",
-            "trialnum",
-            "values.congruency",
-            "stimulusitem1",
-            "response",
-            "correct",
-            "latency",
-            "task"
-        ]
+        cols = ["subjectid", "blocknum", "trialnum", "values.congruency", "stimulusitem1",
+                "response", "correct", "latency", "task"]
+        return self._select("stroop", cols)
 
-        stroop = self.df[self.df["task"] == "stroop"]
-        stroop = stroop[cols]
-
-        return stroop
-
-    # -------------------------
-    # SART RELEVANT COLS
-    # -------------------------
     def clean_sart(self):
-        cols = [
-            "subjectid",
-            "blocknum",
-            "trialnum",
-            "values.trialtype",
-            "values.digit",
-            "response",
-            "correct",
-            "values.RT",
-            "values.responsetype",
-            "values.latencytype",
-            "task"
-        ]
-
-        sart = self.df[self.df["task"] == "sart"]
-        sart = sart[cols]
-
-        return sart
+        cols = ["subjectid", "blocknum", "trialnum", "values.trialtype", "values.digit",
+                "response", "correct", "values.RT", "values.responsetype", "values.latencytype", "task"]
+        return self._select("sart", cols)
 
 
 class SubjectLevelAggregator:
     """
-    Construcción del dataset final:
-    UNA fila por sujeto con métricas por tarea
-
-    Final dataset construction:
-    One row per subject with task-specific metrics
+    Una fila por sujeto con métricas por tarea.
     """
 
-    def __init__(self, flanker_df, stroop_df, sart_df):
+    def __init__(self, flanker_df: pd.DataFrame, stroop_df: pd.DataFrame, sart_df: pd.DataFrame):
         self.flanker = flanker_df
         self.stroop = stroop_df
         self.sart = sart_df
@@ -151,85 +87,36 @@ class SubjectLevelAggregator:
         logger.info(f"Stroop trials after cleaning: {self.stroop.shape}")
         logger.info(f"SART trials after cleaning: {self.sart.shape}")
 
-    # -------------------------
-    # FLANKER
-    # -------------------------
     def aggregate_flanker(self):
-        df = (
-            self.flanker
-            .groupby("subjectid")
-            .agg(
-                flanker_rt=("latency", "mean"),
-                flanker_accuracy=("correct", "mean"),
-                flanker_error_rate=("correct", lambda x: 1 - x.mean())
-            )
-            .reset_index()
-        )
-
-        logger.info(f"Flanker subjects aggregated: {df.shape[0]}")
+        df = self.flanker.groupby("subjectid").agg(
+            flanker_rt=("latency", "mean"),
+            flanker_accuracy=("correct", "mean"),
+        ).reset_index()
+        df["flanker_error_rate"] = 1 - df["flanker_accuracy"]
         return df
 
-    # -------------------------
-    # STROOP
-    # -------------------------
     def aggregate_stroop(self):
-        df = (
-            self.stroop
-            .groupby("subjectid")
-            .agg(
-                stroop_rt=("latency", "mean"),
-                stroop_accuracy=("correct", "mean"),
-                stroop_error_rate=("correct", lambda x: 1 - x.mean())
-            )
-            .reset_index()
-        )
-
-        logger.info(f"Stroop subjects aggregated: {df.shape[0]}")
+        df = self.stroop.groupby("subjectid").agg(
+            stroop_rt=("latency", "mean"),
+            stroop_accuracy=("correct", "mean"),
+        ).reset_index()
+        df["stroop_error_rate"] = 1 - df["stroop_accuracy"]
         return df
 
-    # -------------------------
-    # SART
-    # -------------------------
     def aggregate_sart(self):
-        df = (
-            self.sart
-            .groupby("subjectid")
-            .agg(
-                sart_rt=("values.RT", "mean"),
-                sart_accuracy=("correct", "mean"),
-                sart_error_rate=("correct", lambda x: 1 - x.mean())
-            )
-            .reset_index()
-        )
-
-        logger.info(f"SART subjects aggregated: {df.shape[0]}")
+        df = self.sart.groupby("subjectid").agg(
+            sart_rt=("values.RT", "mean"),
+            sart_accuracy=("correct", "mean"),
+        ).reset_index()
+        df["sart_error_rate"] = 1 - df["sart_accuracy"]
         return df
 
-    # -------------------------
-    # MERGE FINAL
-    # -------------------------
     def build_final_dataset(self):
-        flanker = self.aggregate_flanker()
-        stroop = self.aggregate_stroop()
-        sart = self.aggregate_sart()
-
         final_df = (
-            flanker
-            .merge(stroop, on="subjectid", how="inner")
-            .merge(sart, on="subjectid", how="inner")
+            self.aggregate_flanker()
+            .merge(self.aggregate_stroop(), on="subjectid", how="inner")
+            .merge(self.aggregate_sart(), on="subjectid", how="inner")
         )
 
         logger.info(f"FINAL dataset shape: {final_df.shape}")
-        logger.info(f"FINAL columns: {list(final_df.columns)}")
-
-        missing = final_df.isna().sum()
-        if missing.any():
-            logger.warning("Missing values detected in final dataset:")
-            logger.warning(missing[missing > 0])
-        else:
-            logger.info("No missing values in final dataset")
-
-        logger.info("Final dataset preview:")
-        logger.info(f"\n{final_df.head()}")
-
         return final_df
