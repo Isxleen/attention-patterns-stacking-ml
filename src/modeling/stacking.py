@@ -1,5 +1,7 @@
 import logging
-import numpy as np
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
 from collections import Counter
 from sklearn.ensemble import StackingClassifier
@@ -10,18 +12,20 @@ from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
 
 
 logger = logging.getLogger(__name__)
 
 
 class StackingEnsemble:
-    def __init__(self, X_train, X_test, y_train, y_test, random_state=42):
+    def __init__(self, X_train, X_test, y_train, y_test, random_state=42, results_dir="results"):
         self.X_train = X_train
         self.X_test = X_test
         self.y_train = y_train
         self.y_test = y_test
         self.random_state = random_state
+        self.results_dir = results_dir
 
     def train(self):
         logger.info("Training Stacking Ensemble...")
@@ -35,7 +39,7 @@ class StackingEnsemble:
             ("rf", RandomForestClassifier(n_estimators=200, random_state=self.random_state, n_jobs=-1)),
             ("svm", Pipeline([
                     ("scaler", StandardScaler()),
-                    ("svm", SVC(kernel="rbf", probability=True, random_state=42)) ])
+                    ("svm", SVC(kernel="rbf", probability=True, random_state=self.random_state)) ])
             )
         ]
 
@@ -55,5 +59,21 @@ class StackingEnsemble:
         logger.info("\n" + classification_report(self.y_test, preds, zero_division=0))
         logger.info("Confusion Matrix:")
         logger.info("\n" + str(confusion_matrix(self.y_test, preds)))
+
+        os.makedirs(self.results_dir, exist_ok=True)
+
+        report = classification_report(self.y_test, preds, zero_division=0)
+        cm = confusion_matrix(self.y_test, preds)
+
+        with open(os.path.join(self.results_dir, "classification_report_Stacking.txt"), "w", encoding="utf-8") as f:
+            f.write(report)
+
+        pd.DataFrame(cm).to_csv(os.path.join(self.results_dir, "confusion_matrix_Stacking.csv"), index=False)
+
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot()
+        plt.title("Confusion Matrix - Stacking")
+        plt.savefig(os.path.join(self.results_dir, "confusion_matrix_Stacking.png"), dpi=300, bbox_inches="tight")
+        plt.close()
 
         return stacking

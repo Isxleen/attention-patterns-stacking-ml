@@ -27,31 +27,38 @@ class UnsupervisedModeling:
         self.X = self.df.drop(columns=["subjectid"])
 
         self.scaler = StandardScaler()
+        self.X_used = None  
+        self.X_scaled = None
         self.pca = None
     
     def scale_features(self):
         logger.info("Normalizing features (StandardScaler)...")
         self.X_scaled = self.scaler.fit_transform(self.X)
+        self.X_used = self.X_scaled  
         return self.X_scaled
+            
     
     def apply_pca(self):
-        logger.info("Appling PCA...")
+        if self.X_scaled is None:
+            self.scale_features()
+
+        logger.info("Applying PCA...")
         self.pca = PCA(n_components=self.n_components, random_state=42)
         self.X_pca = self.pca.fit_transform(self.X_scaled)
+        self.X_used = self.X_pca  # ✅ ahora sí: PCA
 
         explained = np.sum(self.pca.explained_variance_ratio_) * 100
         logger.info(
             f"PCA retained {self.X_pca.shape[1]} components "
             f"explaining {explained:.2f}% variance"
         )
-
         return self.X_pca
     
     def get_feature_matrix(self):
         self.scale_features()
         if self.use_pca:
-            return self.apply_pca()
-        return self.X_scaled
+            self.apply_pca()
+        return self.X_used
     
     def kmeans_clustering(self, n_clusters):
         logger.info(f"Running K-Means(k={n_clusters})...")
